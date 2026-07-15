@@ -17,3 +17,11 @@ class MergeDecision(str, Enum):
     PASS = "pass"
     FAIL = "fail"
     WARN = "warn"
+
+
+class WorkspaceStatus(str, Enum):
+    CREATED = "CREATED"
+    CLONING = "CLONING"
+    READY = "READY"
+    FAILED = "FAILED"
+    CLEANED = "CLEANED"

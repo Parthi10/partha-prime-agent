@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 
-from .scm import PullRequestEvent, SCMProvider, SCMProviderConfig
+from .scm import CloneInfo, PullRequestEvent, SCMProvider, SCMProviderConfig
 
 
 class BitbucketProvider(SCMProvider):
@@ -81,6 +81,10 @@ class BitbucketProvider(SCMProvider):
         if not isinstance(repository_uuid, str) or not repository_uuid:
             return None
 
+        full_name = repository.get("full_name")
+        if not isinstance(full_name, str) or not full_name:
+            return None
+
         pr_id = pull_request.get("id")
         if not isinstance(pr_id, int):
             return None
@@ -93,5 +97,12 @@ class BitbucketProvider(SCMProvider):
             target_branch=target_branch,
             source_commit_sha=source_commit_sha,
             target_commit_sha=target_commit_sha,
+            repository_full_name=full_name,
             provider_event_id=event_key,
+        )
+
+    async def get_clone_info(self, event: PullRequestEvent) -> CloneInfo | None:
+        return CloneInfo(
+            clone_url=f"https://bitbucket.org/{event.repository_full_name}.git",
+            repository_name=event.repository_full_name,
         )

@@ -29,7 +29,7 @@ async def test_persists_repository_pull_request_and_workflow_run() -> None:
                 "commit": {"hash": "target-hash"},
             },
         },
-        "repository": {"uuid": "repo-999"},
+        "repository": {"uuid": "repo-999", "full_name": "acme/demo-repo"},
     }
     body = json.dumps(payload).encode("utf-8")
 
