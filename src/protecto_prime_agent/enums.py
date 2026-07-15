@@ -9,6 +9,7 @@ class ExecutionStatus(str, Enum):
     SUCCEEDED = "succeeded"
     FAILED = "failed"
     CANCELLED = "cancelled"
+    QUEUED = "queued"
 
 
 class MergeDecision(str, Enum):
