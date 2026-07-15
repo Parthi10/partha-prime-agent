@@ -30,6 +30,13 @@ class Settings(BaseSettings):
     redis_password: str | None = Field(default=None)
     bitbucket_webhook_secret: str | None = Field(default=None)
     github_webhook_secret: str | None = Field(default=None)
+    workspace_root: str = Field(default="/tmp/protecto-workspaces")
+    git_clone_timeout_seconds: int = Field(default=300)
+    git_fetch_timeout_seconds: int = Field(default=300)
+    max_workspace_size_mb: int = Field(default=1024)
+    workspace_retention_hours: int = Field(default=24)
+    git_network_max_retries: int = Field(default=3)
+    git_network_retry_backoff_seconds: float = Field(default=0.5)
 
     @computed_field  # type: ignore[prop-defined]
     @property

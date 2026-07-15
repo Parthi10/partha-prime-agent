@@ -31,7 +31,7 @@ def _github_payload() -> dict[str, object]:
             "head": {"ref": "feature/github", "sha": "abc123"},
             "base": {"ref": "main", "sha": "def456"},
         },
-        "repository": {"id": 789, "name": "demo-repo"},
+        "repository": {"id": 789, "name": "demo-repo", "full_name": "acme/demo-repo"},
     }
 
 
@@ -134,7 +134,7 @@ async def test_provider_contract_normalizes_to_identical_pull_request_event() ->
             "source": {"branch": {"name": "feature/test"}, "commit": {"hash": "abc123"}},
             "destination": {"branch": {"name": "main"}, "commit": {"hash": "def456"}},
         },
-        "repository": {"uuid": "repo-123"},
+        "repository": {"uuid": "repo-123", "full_name": "acme/demo-repo"},
     }
     github_payload = {
         "action": "opened",
@@ -143,7 +143,7 @@ async def test_provider_contract_normalizes_to_identical_pull_request_event() ->
             "head": {"ref": "feature/test", "sha": "abc123"},
             "base": {"ref": "main", "sha": "def456"},
         },
-        "repository": {"id": 456, "name": "demo"},
+        "repository": {"id": 456, "name": "demo", "full_name": "acme/demo"},
     }
 
     bitbucket_provider = BitbucketProvider(SCMProviderConfig(provider_type=SCMProviderType.BITBUCKET, webhook_secret="secret"))

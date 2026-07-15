@@ -26,7 +26,19 @@ class PullRequestEvent:
     target_branch: str
     source_commit_sha: str
     target_commit_sha: str
+    repository_full_name: str
     provider_event_id: str | None = None
+
+
+@dataclass(slots=True)
+class CloneInfo:
+    clone_url: str
+    repository_name: str
+    # Ephemeral credential for private-repository access. Never embedded in clone_url,
+    # never persisted (DB or .git/config); consumed only via a short-lived GIT_ASKPASS
+    # helper for the duration of a single fetch operation.
+    access_token: str | None = None
+    access_username: str = "x-access-token"
 
 
 class SCMProvider(Protocol):
@@ -36,4 +48,8 @@ class SCMProvider(Protocol):
 
     async def parse_pull_request_event(self, payload: dict[str, object]) -> PullRequestEvent | None:
         """Parse supported pull request payloads into a normalized event object."""
+        raise NotImplementedError
+
+    async def get_clone_info(self, event: PullRequestEvent) -> CloneInfo | None:
+        """Return provider-specific clone information for a normalized pull request event."""
         raise NotImplementedError

@@ -31,7 +31,7 @@ async def test_valid_webhook() -> None:
                 "commit": {"hash": "def456"},
             },
         },
-        "repository": {"uuid": "repo-123"},
+        "repository": {"uuid": "repo-123", "full_name": "acme/demo-repo"},
     }
     body = json.dumps(payload).encode("utf-8")
 
@@ -63,7 +63,7 @@ async def test_invalid_webhook_authentication() -> None:
 
 @pytest.mark.asyncio
 async def test_duplicate_webhook() -> None:
-    payload = {"eventKey": "pr:created", "pullrequest": {"id": 123, "source": {"branch": {"name": "feature/test"}, "commit": {"hash": "abc123"}}, "destination": {"branch": {"name": "main"}, "commit": {"hash": "def456"}}}, "repository": {"uuid": "repo-123"}}
+    payload = {"eventKey": "pr:created", "pullrequest": {"id": 123, "source": {"branch": {"name": "feature/test"}, "commit": {"hash": "abc123"}}, "destination": {"branch": {"name": "main"}, "commit": {"hash": "def456"}}}, "repository": {"uuid": "repo-123", "full_name": "acme/demo-repo"}}
     body = json.dumps(payload).encode("utf-8")
 
     with patch("protecto_prime_agent.services.webhook_service.get_settings") as settings_mock:
@@ -84,7 +84,7 @@ async def test_duplicate_webhook() -> None:
 
 @pytest.mark.asyncio
 async def test_unsupported_event() -> None:
-    payload = {"eventKey": "repo:push", "pullrequest": {"id": 123, "source": {"branch": {"name": "feature/test"}, "commit": {"hash": "abc123"}}, "destination": {"branch": {"name": "main"}, "commit": {"hash": "def456"}}}, "repository": {"uuid": "repo-123"}}
+    payload = {"eventKey": "repo:push", "pullrequest": {"id": 123, "source": {"branch": {"name": "feature/test"}, "commit": {"hash": "abc123"}}, "destination": {"branch": {"name": "main"}, "commit": {"hash": "def456"}}}, "repository": {"uuid": "repo-123", "full_name": "acme/demo-repo"}}
     body = json.dumps(payload).encode("utf-8")
 
     with patch("protecto_prime_agent.services.webhook_service.get_settings") as settings_mock:
@@ -99,7 +99,7 @@ async def test_unsupported_event() -> None:
 
 @pytest.mark.asyncio
 async def test_unsupported_target_branch() -> None:
-    payload = {"eventKey": "pr:created", "pullrequest": {"id": 123, "source": {"branch": {"name": "feature/test"}, "commit": {"hash": "abc123"}}, "destination": {"branch": {"name": "release"}, "commit": {"hash": "def456"}}}, "repository": {"uuid": "repo-123"}}
+    payload = {"eventKey": "pr:created", "pullrequest": {"id": 123, "source": {"branch": {"name": "feature/test"}, "commit": {"hash": "abc123"}}, "destination": {"branch": {"name": "release"}, "commit": {"hash": "def456"}}}, "repository": {"uuid": "repo-123", "full_name": "acme/demo-repo"}}
     body = json.dumps(payload).encode("utf-8")
 
     with patch("protecto_prime_agent.services.webhook_service.get_settings") as settings_mock:
@@ -114,7 +114,7 @@ async def test_unsupported_target_branch() -> None:
 
 @pytest.mark.asyncio
 async def test_missing_required_fields() -> None:
-    payload = {"eventKey": "pr:created", "pullrequest": {"source": {"branch": {"name": "feature/test"}, "commit": {"hash": "abc123"}}, "destination": {"branch": {"name": "main"}, "commit": {"hash": "def456"}}}, "repository": {"uuid": "repo-123"}}
+    payload = {"eventKey": "pr:created", "pullrequest": {"source": {"branch": {"name": "feature/test"}, "commit": {"hash": "abc123"}}, "destination": {"branch": {"name": "main"}, "commit": {"hash": "def456"}}}, "repository": {"uuid": "repo-123", "full_name": "acme/demo-repo"}}
     body = json.dumps(payload).encode("utf-8")
 
     with patch("protecto_prime_agent.services.webhook_service.get_settings") as settings_mock:
@@ -142,7 +142,7 @@ async def test_endpoint_accepts_valid_webhook() -> None:
                 "commit": {"hash": "def456"},
             },
         },
-        "repository": {"uuid": "repo-123"},
+        "repository": {"uuid": "repo-123", "full_name": "acme/demo-repo"},
     }
     body = json.dumps(payload).encode("utf-8")
 

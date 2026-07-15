@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 
-from .scm import PullRequestEvent, SCMProvider, SCMProviderConfig
+from .scm import CloneInfo, PullRequestEvent, SCMProvider, SCMProviderConfig
 
 
 class GitHubProvider(SCMProvider):
@@ -75,6 +75,10 @@ class GitHubProvider(SCMProvider):
         if not isinstance(repository_id, int):
             return None
 
+        full_name = repository.get("full_name")
+        if not isinstance(full_name, str) or not full_name:
+            return None
+
         return PullRequestEvent(
             event_type="pull_request",
             repository_id=str(repository_id),
@@ -83,5 +87,12 @@ class GitHubProvider(SCMProvider):
             target_branch=target_branch,
             source_commit_sha=source_commit_sha,
             target_commit_sha=target_commit_sha,
+            repository_full_name=full_name,
             provider_event_id=action,
+        )
+
+    async def get_clone_info(self, event: PullRequestEvent) -> CloneInfo | None:
+        return CloneInfo(
+            clone_url=f"https://github.com/{event.repository_full_name}.git",
+            repository_name=event.repository_full_name,
         )
