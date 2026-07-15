@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     redis_port: int = Field(default=6379)
     redis_db: int = Field(default=0)
     redis_password: str | None = Field(default=None)
+    bitbucket_webhook_secret: str | None = Field(default=None)
+    github_webhook_secret: str | None = Field(default=None)
 
     @computed_field  # type: ignore[prop-defined]
     @property

@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 
+from .api.v1 import webhooks_router
 from .config import get_settings
 from .database import init_db
 from .logging import attach_correlation_id, build_logger, log_contextual
@@ -24,6 +25,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Protecto Prime Agent", version="0.1.0", lifespan=lifespan)
+app.include_router(webhooks_router)
 
 
 @app.middleware("http")
