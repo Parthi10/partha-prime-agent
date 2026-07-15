@@ -1,0 +1,37 @@
+rules:
+  - id: dangerous-eval-usage
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Use of eval() can allow arbitrary code execution if the argument is
+      influenced by untrusted input.
+    patterns:
+      - pattern: eval(...)
+
+  - id: dangerous-exec-usage
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Use of exec() can allow arbitrary code execution if the argument is
+      influenced by untrusted input.
+    patterns:
+      - pattern: exec(...)
+
+  - id: subprocess-shell-true
+    languages: [python]
+    severity: WARNING
+    message: >-
+      subprocess call with shell=True is a command injection risk if any
+      argument is influenced by untrusted input.
+    patterns:
+      - pattern: subprocess.$FUNC(..., shell=True, ...)
+
+  - id: yaml-unsafe-load
+    languages: [python]
+    severity: WARNING
+    message: >-
+      yaml.load() without an explicit safe Loader can execute arbitrary code
+      when parsing untrusted YAML.
+    patterns:
+      - pattern: yaml.load(...)
+      - pattern-not: yaml.load(..., Loader=yaml.SafeLoader)
