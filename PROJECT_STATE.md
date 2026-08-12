@@ -6,7 +6,8 @@ conflicts with what you observe in the repository (`git status`, `git log`, runn
 the tests), trust what you observe and update this file -- don't trust a stale
 description over the real repository state.
 
-Last verified: this session, on `feature/milestone-4-scanner-runtime`, via
+Last verified: this session, on `develop` (for verification) and
+`feature/milestone-5-scan-orchestration` (current working branch), via
 `ruff check .`, `pyright`, `pytest -q`, and `docker compose config` (see "Latest
 verified test count" below for exact numbers).
 
@@ -23,46 +24,50 @@ runtime, built on FastAPI, PostgreSQL, Redis, and Docker Compose.
 | 1 -- Platform foundation | Merged to `develop` (and to `main` via PR #1) | `docs/architecture/v1.md` (currently an empty placeholder file) |
 | 2 -- Bitbucket webhook ingestion | Merged to `develop` (PR #2) | `docs/architecture/milestone-2.md` |
 | 3 -- Repository workspace (secure clone/fetch) | Merged to `develop` (PR #3) | `docs/architecture/milestone-3.md` |
-| 4 -- Scanner runtime | **Implemented and locally verified on `feature/milestone-4-scanner-runtime`; NOT yet committed, pushed, or merged** | `docs/architecture/milestone-4.md` |
+| 4 -- Scanner runtime | Committed directly to `develop` (`8d7b832`) -- no feature-branch PR exists for it, since `develop`'s tip already matched `feature/milestone-4-scanner-runtime` when this was discovered. Included in PR #4 below. | `docs/architecture/milestone-4.md` |
 
 ## Current milestone and status
 
-**Milestone 4: Scanner Runtime.**
+**Milestone 4 is code-complete and committed.** All source code for the scanner
+runtime (`src/protecto_prime_agent/scanners/`, six adapters, registry, runner,
+execution backends, normalization/redaction, injectable audit writer) and its test
+suite are committed on `develop` at `8d7b832`.
 
-- All source code for the scanner runtime (`src/protecto_prime_agent/scanners/`, six
-  adapters, registry, runner, execution backends, normalization/redaction, injectable
-  audit writer) and its test suite
-  (`tests/test_scanner_{normalization,execution,registry,runner,adapters}.py`) are
-  present in the working tree.
-- Configuration (`src/protecto_prime_agent/config.py`, `.env.example`),
-  `pyproject.toml` scanner dependencies, and `docs/architecture/milestone-4.md` are
-  present.
-- A full deployment/operations/development documentation set was added in this session
-  (see "Documentation" below).
-- **None of this is committed.** `git status` on `feature/milestone-4-scanner-runtime`
-  shows the scanner runtime and its docs/tests as modified/untracked changes in the
-  working tree, not as commits. Nothing has been pushed, and no pull request exists for
-  this branch's Milestone 4 work.
-- Verification (ruff, pyright, pytest, docker compose config) passes against this
-  uncommitted working tree -- see "Latest verified test count" below. This confirms the
-  *implementation* is complete and correct; it does not mean the milestone has been
-  reviewed, committed, or merged.
+Outstanding: `develop` (4 commits ahead: milestones 2, 3, 4) has never been promoted
+to `main` since PR #1 (which only carried milestone 1). **PR #4
+(`develop` -> `main`, https://github.com/Parthi10/partha-prime-agent/pull/4) is open
+and awaiting review/merge** -- it brings milestones 2-4 to `main`. Verified on
+`develop` before opening: `ruff check .` clean, `pyright` 0 errors, `pytest -q` ->
+116 passed / 2 failed (the 2 failures are `test_integration_health.py` tests that
+require live Postgres/Redis containers not running in this environment -- not a code
+regression), `docker compose config` valid.
+
+**Milestone 5 has not started.** `feature/milestone-5-scan-orchestration` exists
+(branched from the milestone-4 commit) but contains no milestone-5-specific commits
+yet, and no `docs/architecture/milestone-5.md` exists. Scope has not been confirmed
+with the user -- see "Next planned milestone" below.
 
 ## Current branch
 
-`feature/milestone-4-scanner-runtime` (tracks `origin/feature/milestone-4-scanner-runtime`,
-up to date with that remote as of last check -- but note the remote branch itself does
-not yet contain the uncommitted Milestone 4 work described above, since nothing has
-been pushed).
+`feature/milestone-5-scan-orchestration` (tracks
+`origin/feature/milestone-5-scan-orchestration`, up to date, working tree clean, no
+milestone-5 work started yet).
 
 ## Latest verified test count
 
+Verified on `develop` (commit `8d7b832`), without Docker Compose services running:
+
 ```
-pytest -q  ->  118 passed
+pytest -q  ->  116 passed, 2 failed (test_integration_health.py::test_database_health
+                and ::test_redis_health -- require live Postgres/Redis; not code
+                regressions)
 ruff check .        ->  All checks passed!
 pyright              ->  0 errors, 0 warnings, 0 informations
 docker compose config ->  valid (no errors)
 ```
+
+A prior session recorded `118 passed` with Postgres/Redis containers up -- the 2
+integration tests above account for the difference.
 
 ## Current architecture summary
 
@@ -140,8 +145,10 @@ scope confirmation first.**
 
 ## Known risks
 
-- **Milestone 4 work is uncommitted.** A hard reset, `git clean -fd`, or checkout of a
-  clean branch would destroy it. See rule 2 above.
+- **`develop` is not yet merged to `main`.** PR #4
+  (https://github.com/Parthi10/partha-prime-agent/pull/4) is open but unmerged as of
+  this writing; `main` is still 4 commits behind `develop` (missing milestones 2-4)
+  until it's reviewed and merged.
 - **Alembic migrations currently fail**: `alembic current`/`alembic upgrade head` raise
   `KeyError: 'formatters'` because `alembic.ini` lacks the logging-config sections
   `fileConfig` expects. Verified in this session. Tables are created in practice via
