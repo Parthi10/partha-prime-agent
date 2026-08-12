@@ -150,18 +150,21 @@ async def test_endpoint_accepts_valid_webhook() -> None:
         settings_mock.return_value.bitbucket_webhook_secret = "secret"
         with patch("protecto_prime_agent.services.webhook_service.BitbucketProvider.validate_webhook", new=AsyncMock(return_value=True)):
             with patch("protecto_prime_agent.services.webhook_service.SessionLocal") as session_factory:
-                session = Mock()
-                session.execute = AsyncMock(return_value=_make_result(None))
-                session.flush = AsyncMock()
-                session.commit = AsyncMock()
-                session.add = Mock()
-                session_factory.return_value.__aenter__.return_value = session
-                transport = ASGITransport(app=app)
-                async with AsyncClient(transport=transport, base_url="http://test") as client:
-                    response = await client.post(
-                        "/api/v1/webhooks/bitbucket",
-                        content=body,
-                        headers={"X-Correlation-ID": "corr-2", "X-Hub-Signature": "signature"},
-                    )
+                with patch("protecto_prime_agent.services.webhook_service.ScanOrchestrationService") as orchestrator_cls:
+                    orchestrator_cls.return_value.run = AsyncMock()
+                    session = Mock()
+                    session.execute = AsyncMock(return_value=_make_result(None))
+                    session.flush = AsyncMock()
+                    session.commit = AsyncMock()
+                    session.add = Mock()
+                    session_factory.return_value.__aenter__.return_value = session
+                    transport = ASGITransport(app=app)
+                    async with AsyncClient(transport=transport, base_url="http://test") as client:
+                        response = await client.post(
+                            "/api/v1/webhooks/bitbucket",
+                            content=body,
+                            headers={"X-Correlation-ID": "corr-2", "X-Hub-Signature": "signature"},
+                        )
 
     assert response.status_code == 200
+    orchestrator_cls.return_value.run.assert_awaited_once()

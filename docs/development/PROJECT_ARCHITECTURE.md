@@ -1,9 +1,9 @@
-# Project architecture (through Milestone 4)
+# Project architecture (through Milestone 5)
 
-This describes the system as it exists in the repository today, through Milestone 4.
+This describes the system as it exists in the repository today, through Milestone 5.
 It does not describe aspirational or planned functionality except where explicitly
 marked "not yet implemented." For milestone-by-milestone detail and security notes, see
-`docs/architecture/milestone-{2,3,4}.md` (Milestone 1 is `docs/architecture/v1.md`,
+`docs/architecture/milestone-{2,3,4,5}.md` (Milestone 1 is `docs/architecture/v1.md`,
 currently an empty placeholder file in this repository).
 
 See also: [MILESTONE_GUIDELINES.md](MILESTONE_GUIDELINES.md),
@@ -22,9 +22,13 @@ See also: [MILESTONE_GUIDELINES.md](MILESTONE_GUIDELINES.md),
    clones the exact source commit into an isolated workspace (Milestone 3).
 5. **Scanner runtime** (`src/protecto_prime_agent/scanners/`) -- runs six static
    analysis tools against that workspace and normalizes their output (Milestone 4).
-6. **Persistence** -- PostgreSQL (via SQLAlchemy async + Alembic) and an `AuditLog`
-   table written to from both the webhook and workspace/scanner layers.
-7. **Redis** -- currently used only for a health check (`redis_client.py`); reserved
+6. **Scan orchestration** (`services/scan_orchestration_service.py`) -- wires layers 2,
+   4, and 5 together: scheduled as a FastAPI background task once a webhook is
+   accepted, it runs workspace preparation then the scanner runtime and persists the
+   results (Milestone 5).
+7. **Persistence** -- PostgreSQL (via SQLAlchemy async + Alembic) and an `AuditLog`
+   table written to from the webhook, workspace/scanner, and orchestration layers.
+8. **Redis** -- currently used only for a health check (`redis_client.py`); reserved
    for future job orchestration (see "Not yet implemented" below).
 
 ## Webhook ingestion
@@ -35,7 +39,9 @@ See also: [MILESTONE_GUIDELINES.md](MILESTONE_GUIDELINES.md),
 1. Read the raw request body (before any parsing) and reject bodies over 1 MB.
 2. Construct the matching provider (`BitbucketProvider`/`GitHubProvider`) with its
    webhook secret from `Settings`.
-3. Delegate to `WebhookService.handle_webhook(body, signature, correlation_id)`.
+3. Delegate to `WebhookService.handle_webhook(body, signature, correlation_id,
+   background_tasks)`, passing through FastAPI's injected `BackgroundTasks`
+   (Milestone 5).
 
 `WebhookService` (`services/webhook_service.py`) is provider-agnostic: it only calls
 the `SCMProvider` protocol methods, never anything GitHub/Bitbucket-specific directly.
@@ -49,6 +55,12 @@ It:
 4. Persists/updates `Repository` and `PullRequest` rows, inserts a `WebhookEvent` row,
    creates a `WorkflowRun` row (`execution_status=queued`), and writes an
    `AuditLog` row (`action=webhook_ingested`) -- all in one transaction.
+5. **(Milestone 5)** If `background_tasks` was provided and the event was newly
+   accepted (not a duplicate or ignored), schedules
+   `ScanOrchestrationService.run` as a background task -- after the HTTP response is
+   already sent, never blocking the webhook acknowledgement. Callers that omit
+   `background_tasks` (e.g. direct unit tests) get Milestone 2's original
+   webhook-only behavior with no orchestration triggered.
 
 ## GitHub and Bitbucket provider abstraction
 
@@ -159,17 +171,47 @@ commit-independent `fingerprint`. See
 per-tool severity/category/confidence mapping and the security model (minimal
 subprocess environment, secret redaction, resource limits).
 
+## Scan orchestration (Milestone 5)
+
+`ScanOrchestrationService` (`services/scan_orchestration_service.py`) is the glue
+between the three layers above. Given the `SCMProvider`/`PullRequestEvent` the webhook
+layer already parsed and the `WorkflowRun`/`PullRequest`/`Repository` ids it created,
+`run()`:
+
+1. Marks `WorkflowRun`/`PullRequest.execution_status = running`.
+2. Calls `RepositoryWorkspaceService.prepare_workspace` (Milestone 3). A failure here
+   marks the workflow `failed` and stops -- the scanner runtime is never invoked.
+3. Calls `ScannerRunner.run_scan` (Milestone 4) against the prepared workspace. A
+   crash here (not an individual adapter reporting `FAILED`/`TIMEOUT`, which
+   `ScannerRunner` already isolates per Milestone 4) also marks the workflow `failed`,
+   but the workspace is still explicitly cleaned up.
+4. Persists the `AggregatedScanResult` to `ScanRun` (one row per scanner) and `Finding`
+   (one row per normalized finding).
+5. Calls `RepositoryWorkspaceService.mark_processing_complete` to clean up (or retain
+   per `WORKSPACE_RETENTION_HOURS`) the workspace.
+6. Marks `WorkflowRun`/`PullRequest.execution_status = succeeded`.
+
+It depends on `RepositoryWorkspaceService` and `ScannerRunner` only through two
+minimal local `Protocol` interfaces (`WorkspacePreparer`, `ScanExecutor`), so neither
+Milestone 3 nor Milestone 4 code needed to change. `WebhookService` schedules this via
+FastAPI `BackgroundTasks` -- there is no message queue in this project; see
+[docs/architecture/milestone-5.md](../architecture/milestone-5.md) for the full
+rationale, status-transition table, and remaining risks (no durable queue, no retry,
+no concurrency limit).
+
 ## Audit flow
 
-Both `RepositoryWorkspaceService` and `ScannerRunner` write to the same `AuditLog`
-table (`models/audit_log.py`) through an **injectable writer** pattern: an `AuditWriter`
-protocol/base class with a `SqlAuditWriter` production implementation, duplicated
-independently in each package (`services/repository_workspace_service.py` and
-`scanners/audit.py`) so the scanner runtime has no import dependency on the `services`
-package. Both writers are best-effort: a failure to write an audit row is caught,
-logged as a sanitized structured event, and never blocks the underlying operation
-(workspace prep or a scan). `WebhookService` writes to the same table directly (not
-through the injectable-writer pattern, since it already holds an open transaction).
+`RepositoryWorkspaceService`, `ScannerRunner`, and `ScanOrchestrationService` all write
+to the same `AuditLog` table (`models/audit_log.py`) through an **injectable writer**
+pattern: an `AuditWriter` protocol/base class with a `SqlAuditWriter` production
+implementation. `scanners/audit.py` keeps its own independent copy so the scanner
+runtime has no import dependency on the `services` package; `ScanOrchestrationService`
+reuses the copy already defined in `services/repository_workspace_service.py` rather
+than adding a third. All writers are best-effort: a failure to write an audit row is
+caught, logged as a sanitized structured event, and never blocks the underlying
+operation (workspace prep, a scan, or orchestration). `WebhookService` writes to the
+same table directly (not through the injectable-writer pattern, since it already holds
+an open transaction).
 
 Every audit row has `entity_type`, `entity_id`, `action`, `actor`, `metadata_json`
 (itself passed through the same redaction function used for logs), and `created_at`.
@@ -185,10 +227,10 @@ also exists and defines the same schema as a versioned migration; there is curre
 [docs/deployment/LOCAL_SETUP.md](../deployment/LOCAL_SETUP.md) for the exact command).
 Ten tables exist today: `repositories`, `pull_requests`, `webhook_events`,
 `workflow_runs`, `scan_runs`, `findings`, `policy_decisions`, `reports`,
-`notifications`, `audit_logs`. Of these, `scan_runs`, `findings`, `policy_decisions`,
-`reports`, and `notifications` are defined (created in Milestone 1, in anticipation of
-later milestones) but **not yet written to by any current code path** -- Milestone 4's
-`NormalizedFinding`/`AggregatedScanResult` are in-memory only.
+`notifications`, `audit_logs`. As of Milestone 5, `ScanOrchestrationService` writes
+`scan_runs` and `findings` rows from every orchestrated scan. `policy_decisions`,
+`reports`, and `notifications` remain defined (created in Milestone 1, in anticipation
+of later milestones) but **not yet written to by any current code path**.
 
 ## Redis
 
@@ -241,6 +283,7 @@ flowchart TD
     subgraph ProviderIndependent["Provider-independent core"]
         SCM["SCMProvider protocol / PullRequestEvent / CloneInfo"]
         WS["WebhookService"]
+        SOS["ScanOrchestrationService (Milestone 5)"]
         RWS["RepositoryWorkspaceService (Milestone 3)"]
         SR["ScannerRunner + ScannerRegistry (Milestone 4)"]
     end
@@ -252,11 +295,12 @@ flowchart TD
     WS --> PG[("PostgreSQL: repositories, pull_requests, webhook_events, workflow_runs")]
     WS --> Audit[("audit_logs")]
 
-    WS -.->|"not yet wired: future orchestrator"| RWS
+    WS -->|"BackgroundTasks.add_task"| SOS
+    SOS --> RWS
     RWS --> Workspace[["Isolated workspace: checked-out source commit + diff.patch"]]
     RWS --> Audit
 
-    Workspace -.->|"not yet wired: future orchestrator"| SR
+    Workspace --> SR
 
     subgraph Adapters["Scanner adapters"]
         Ruff["ruff"]
@@ -268,13 +312,16 @@ flowchart TD
     end
 
     SR --> Ruff & Bandit & Semgrep & Pyright & Gitleaks & PipAudit
-    Ruff & Bandit & Semgrep & Pyright & Gitleaks & PipAudit --> AggResult[["AggregatedScanResult (in-memory only)"]]
+    Ruff & Bandit & Semgrep & Pyright & Gitleaks & PipAudit --> AggResult[["AggregatedScanResult"]]
     SR --> Audit
+    AggResult --> SOS
+    SOS --> ScanPG[("PostgreSQL: scan_runs, findings")]
+    SOS --> Audit
+    SOS -->|"execution_status: running -> succeeded/failed"| PG
 
     Health --> Redis[("Redis: health check only")]
 
     subgraph NotYet["Not yet implemented (future milestones)"]
-        Persist["Persisting ScanRun / Finding rows"]
         Baseline["Baseline comparison"]
         Policy["Merge policy / merge blocking"]
         Status["GitHub / Bitbucket status publishing"]
@@ -283,33 +330,31 @@ flowchart TD
         GitLab["GitLab provider"]
     end
 
-    AggResult -.-> Persist
-    AggResult -.-> Baseline
+    ScanPG -.-> Baseline
     Baseline -.-> Policy
     Policy -.-> Status
     Policy -.-> Notif
     Policy -.-> LLM
 ```
 
-## Not yet implemented (explicitly out of scope through Milestone 4)
+## Not yet implemented (explicitly out of scope through Milestone 5)
 
 - **GitLab provider** -- `SCMProviderType.GITLAB` is enumerated but has no provider
   implementation.
 - **Baseline comparison** -- comparing a scan's findings against a prior scan/commit.
-- **Merge policy / merge blocking** -- `PolicyDecision` model exists, unused.
+- **Merge policy / merge blocking** -- `PolicyDecision` model exists, unused;
+  `PullRequest.merge_decision` and `Finding.policy_blocking` stay at their defaults.
 - **GitHub/Bitbucket status/check publishing** -- no code posts a commit status or
   check run to either provider.
 - **Email notifications** -- `Notification` model exists, unused.
 - **LLM-driven review** -- no LLM integration anywhere in the codebase.
-- **Persisting scan results** -- `ScanRun` and `Finding` models/tables exist (Milestone
-  1) but nothing currently writes to them; `AggregatedScanResult`/`NormalizedFinding`
-  are in-memory only.
 - **Scanner container images** -- `ContainerExecutionBackend` exists and is unit-tested
   for the safety of the `docker run` invocation it builds, but no
   `protecto-scanner-<tool>:<version>` images have been built, and no
-  `docker-compose.yml` service runs scanners in containers today.
-- **End-to-end orchestration** -- nothing currently calls
-  `RepositoryWorkspaceService.prepare_workspace` and `ScannerRunner.run_scan` from the
-  webhook flow; each was built and tested as an independent, reusable service, and
-  wiring them together is left to a future milestone (see the dashed "not yet wired"
-  edges in the diagram above).
+  `docker-compose.yml` service runs scanners in containers today;
+  `ScanOrchestrationService`'s default scanner runner uses
+  `LocalProcessExecutionBackend`.
+- **Durable orchestration queue** -- Milestone 5 schedules orchestration via FastAPI's
+  in-process `BackgroundTasks`, not a message queue; there is no retry, no persisted
+  work queue, and no concurrency limit across simultaneous scans. See
+  [docs/architecture/milestone-5.md](../architecture/milestone-5.md#remaining-risks--known-limitations).
