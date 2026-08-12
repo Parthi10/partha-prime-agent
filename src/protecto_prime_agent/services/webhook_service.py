@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import uuid
 from datetime import datetime, timezone
 from typing import Any
 
+from fastapi import BackgroundTasks
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,15 +15,23 @@ from ..database import SessionLocal
 from ..enums import ExecutionStatus, MergeDecision
 from ..integrations.bitbucket import BitbucketProvider
 from ..integrations.scm import PullRequestEvent, SCMProvider
+from ..logging import log_contextual
 from ..models import AuditLog, PullRequest, Repository, WebhookEvent, WorkflowRun
+from .scan_orchestration_service import ScanOrchestrationService
 
 settings = get_settings()
 
 
 class WebhookService:
-    def __init__(self, provider: SCMProvider | None = None, session: AsyncSession | None = None) -> None:
+    def __init__(
+        self,
+        provider: SCMProvider | None = None,
+        session: AsyncSession | None = None,
+        orchestrator: ScanOrchestrationService | None = None,
+    ) -> None:
         self.session = session
         self.provider = provider or self._default_provider()
+        self.orchestrator = orchestrator
 
     def _default_provider(self) -> SCMProvider:
         from ..integrations.scm import SCMProviderConfig, SCMProviderType
@@ -33,7 +43,13 @@ class WebhookService:
             )
         )
 
-    async def handle_webhook(self, body: bytes, signature: str | None, correlation_id: str) -> dict[str, Any]:
+    async def handle_webhook(
+        self,
+        body: bytes,
+        signature: str | None,
+        correlation_id: str,
+        background_tasks: BackgroundTasks | None = None,
+    ) -> dict[str, Any]:
         if not body:
             raise ValueError("empty_body")
 
@@ -60,7 +76,41 @@ class WebhookService:
             await self._create_audit_log(session, pull_request, workflow_run, correlation_id)
             await session.commit()
 
+            if background_tasks is not None:
+                background_tasks.add_task(
+                    self._trigger_orchestration,
+                    event=parsed,
+                    repository_id=repository.id,
+                    pull_request_id=pull_request.id,
+                    workflow_run_id=workflow_run.id,
+                    correlation_id=correlation_id,
+                )
+
         return {"status": "accepted", "message": "workflow_queued"}
+
+    async def _trigger_orchestration(
+        self,
+        *,
+        event: PullRequestEvent,
+        repository_id: uuid.UUID,
+        pull_request_id: uuid.UUID,
+        workflow_run_id: uuid.UUID,
+        correlation_id: str,
+    ) -> None:
+        orchestrator = self.orchestrator or ScanOrchestrationService()
+        try:
+            await orchestrator.run(
+                provider=self.provider,
+                event=event,
+                repository_id=repository_id,
+                pull_request_id=pull_request_id,
+                workflow_run_id=workflow_run_id,
+                correlation_id=correlation_id,
+            )
+        except Exception as exc:  # pragma: no cover - defensive; orchestrator.run already guards internally
+            log_contextual(
+                "orchestration_trigger_failed", workflow_run_id=str(workflow_run_id), error_type=type(exc).__name__
+            )
 
     async def _get_existing_webhook_event(self, session: AsyncSession, provider_event_id: str, payload_hash: str) -> WebhookEvent | None:
         stmt = select(WebhookEvent).where(

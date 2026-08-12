@@ -19,10 +19,10 @@ Protecto Prime Agent V1 provides an internal PR review platform foundation using
 - [docs/development/CLAUDE_CODE_RULES.md](docs/development/CLAUDE_CODE_RULES.md) -- non-negotiable rules for any coding session in this repository (never discard work, never commit/push/merge without explicit approval, etc).
 - [docs/development/DEVELOPMENT_WORKFLOW.md](docs/development/DEVELOPMENT_WORKFLOW.md) -- branch flow, exact example commands, standard verification commands.
 - [docs/development/MILESTONE_GUIDELINES.md](docs/development/MILESTONE_GUIDELINES.md) -- how milestones are scoped, completed, and handed over.
-- [docs/development/PROJECT_ARCHITECTURE.md](docs/development/PROJECT_ARCHITECTURE.md) -- current architecture through Milestone 4, with a Mermaid diagram and explicit "not yet implemented" list.
+- [docs/development/PROJECT_ARCHITECTURE.md](docs/development/PROJECT_ARCHITECTURE.md) -- current architecture through Milestone 5, with a Mermaid diagram and explicit "not yet implemented" list.
 
 **Architecture (milestone-by-milestone detail)**
-- [docs/architecture/milestone-2.md](docs/architecture/milestone-2.md), [docs/architecture/milestone-3.md](docs/architecture/milestone-3.md), [docs/architecture/milestone-4.md](docs/architecture/milestone-4.md).
+- [docs/architecture/milestone-2.md](docs/architecture/milestone-2.md), [docs/architecture/milestone-3.md](docs/architecture/milestone-3.md), [docs/architecture/milestone-4.md](docs/architecture/milestone-4.md), [docs/architecture/milestone-5.md](docs/architecture/milestone-5.md).
 
 **Deployment**
 - [docs/deployment/LOCAL_SETUP.md](docs/deployment/LOCAL_SETUP.md) -- macOS/Linux prerequisites, editable install, scanner dependencies (including gitleaks and the semgrep ruleset), database migrations, running the app, health-endpoint verification, common setup issues.
@@ -70,6 +70,7 @@ review.
 - Milestone 2 -- Bitbucket webhook ingestion, SCM provider abstraction, validation, idempotency, and persistence. See [docs/architecture/milestone-2.md](docs/architecture/milestone-2.md).
 - Milestone 3 -- provider-agnostic repository workspace service: secure clone/fetch of the exact PR source commit, diff generation, cleanup. See [docs/architecture/milestone-3.md](docs/architecture/milestone-3.md).
 - Milestone 4 -- provider-agnostic scanner runtime (ruff, bandit, semgrep, pyright, gitleaks, pip-audit) with normalized findings and sandboxed execution. See [docs/architecture/milestone-4.md](docs/architecture/milestone-4.md).
+- Milestone 5 -- end-to-end scan orchestration: webhook acceptance now schedules a background task that prepares the workspace, runs the scanner runtime, and persists `ScanRun`/`Finding` results. See [docs/architecture/milestone-5.md](docs/architecture/milestone-5.md).
 
 Environment variables for all of the above are documented in
 [docs/deployment/ENVIRONMENT_VARIABLES.md](docs/deployment/ENVIRONMENT_VARIABLES.md).
