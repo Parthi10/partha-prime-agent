@@ -6,8 +6,8 @@ conflicts with what you observe in the repository (`git status`, `git log`, runn
 the tests), trust what you observe and update this file -- don't trust a stale
 description over the real repository state.
 
-Last verified: this session, on `feature/milestone-5-scan-orchestration`, via
-`ruff check .`, `pyright`, `pytest -q`, and `docker compose config` (see "Latest
+Last verified: this session, on `develop` (which `main` is now fully caught up with),
+via `ruff check .`, `pyright`, `pytest -q`, and `docker compose config` (see "Latest
 verified test count" below for exact numbers).
 
 ## Project name
@@ -23,65 +23,47 @@ runtime, built on FastAPI, PostgreSQL, Redis, and Docker Compose.
 | 1 -- Platform foundation | Merged to `develop` (and to `main` via PR #1) | `docs/architecture/v1.md` (currently an empty placeholder file) |
 | 2 -- Bitbucket webhook ingestion | Merged to `develop` (PR #2) | `docs/architecture/milestone-2.md` |
 | 3 -- Repository workspace (secure clone/fetch) | Merged to `develop` (PR #3) | `docs/architecture/milestone-3.md` |
-| 4 -- Scanner runtime | Committed directly to `develop` (`8d7b832`) -- no feature-branch PR exists for it, since `develop`'s tip already matched `feature/milestone-4-scanner-runtime` when this was discovered. Included in PR #4 (open, unmerged as of this writing). | `docs/architecture/milestone-4.md` |
-| 5 -- Scan orchestration | **Implemented and locally verified on `feature/milestone-5-scan-orchestration`; NOT yet committed** | `docs/architecture/milestone-5.md` |
+| 4 -- Scanner runtime | Merged to `develop` and to `main` (PR #4) | `docs/architecture/milestone-4.md` |
+| 5 -- Scan orchestration | Merged to `develop` (PR #5) and to `main` (PR #6) | `docs/architecture/milestone-5.md` |
 
 ## Current milestone and status
 
-**Milestone 5: Scan Orchestration -- implemented, locally verified, not yet committed.**
+**No milestone is currently in progress.** Milestone 5 (end-to-end scan
+orchestration) is merged all the way to `main`; `main` and `develop` are fully in
+sync (`git log origin/main..origin/develop` is empty). The
+`feature/milestone-5-scan-orchestration` branch has been deleted (locally and on
+origin) now that it's merged. Milestone 6 has not been scoped yet -- see "Next
+planned milestone" below.
 
 `ScanOrchestrationService` (`src/protecto_prime_agent/services/scan_orchestration_service.py`)
-wires the previously-independent webhook (Milestone 2), workspace (Milestone 3), and
-scanner runtime (Milestone 4) components together end-to-end: when a webhook is
-accepted, `WebhookService` now schedules orchestration as a FastAPI background task,
-which prepares the workspace, runs the scanner runtime, and persists results to
-`ScanRun`/`Finding`. Full detail, including why background tasks (not a message queue)
-and the exact status-transition/failure-handling model:
+wires the webhook (Milestone 2), workspace (Milestone 3), and scanner runtime
+(Milestone 4) components together end-to-end: when a webhook is accepted,
+`WebhookService` schedules orchestration as a FastAPI background task, which prepares
+the workspace, runs the scanner runtime, and persists results to `ScanRun`/`Finding`.
+Full detail, including why background tasks (not a message queue) and the exact
+status-transition/failure-handling model:
 [docs/architecture/milestone-5.md](docs/architecture/milestone-5.md).
-
-**None of this is committed yet.** `git status` on
-`feature/milestone-5-scan-orchestration` shows it all as modified/untracked changes in
-the working tree. Files touched this session:
-
-- New: `src/protecto_prime_agent/services/scan_orchestration_service.py`,
-  `tests/test_scan_orchestration_service.py`, `docs/architecture/milestone-5.md`.
-- Modified: `src/protecto_prime_agent/services/webhook_service.py` (accepts
-  `background_tasks`/`orchestrator`, schedules orchestration after an accepted
-  webhook), `src/protecto_prime_agent/api/v1/webhooks.py` (both endpoints now take
-  and forward FastAPI's injected `BackgroundTasks`), `tests/test_bitbucket_webhook.py`
-  (the one router-level HTTP test now mocks `ScanOrchestrationService`),
-  `tests/test_webhook_persistence.py` (3 new tests covering scheduling behavior),
-  `README.md`, `docs/development/PROJECT_ARCHITECTURE.md` (diagram, "not yet
-  implemented" list, and new orchestration section updated).
-
-Explicitly out of scope for this milestone (per
-[docs/development/MILESTONE_GUIDELINES.md](docs/development/MILESTONE_GUIDELINES.md)):
-baseline comparison, merge policy/merge blocking, GitHub/Bitbucket status publishing,
-email notifications, LLM-driven review, a GitLab provider, and scanner container
-images -- none of these were touched.
 
 ## Current branch
 
-`feature/milestone-5-scan-orchestration` (tracks
-`origin/feature/milestone-5-scan-orchestration`; the remote branch does not yet
-contain this session's uncommitted Milestone 5 work).
+`develop` (in sync with `origin/develop`, which is identical in content to
+`origin/main` as of the PR #6 merge -- `main` carries one extra merge commit
+wrapping the same tree). No feature branch is currently checked out; the next
+session should create `feature/milestone-6-<description>` once Milestone 6's scope is
+confirmed with the user.
 
 ## Latest verified test count
 
-Verified on `feature/milestone-5-scan-orchestration`, without Docker Compose services
-running:
+Verified on `develop`, without Docker Compose services running:
 
 ```
 pytest -q  ->  124 passed, 2 failed (test_integration_health.py::test_database_health
                 and ::test_redis_health -- require live Postgres/Redis; not code
-                regressions; same 2 pre-existing failures as before this session's work)
+                regressions)
 ruff check .        ->  All checks passed!
 pyright              ->  0 errors, 0 warnings, 0 informations
 docker compose config ->  valid (no errors)
 ```
-
-124 = 116 (pre-Milestone-5 baseline) + 8 new tests (5 in
-`test_scan_orchestration_service.py`, 3 in `test_webhook_persistence.py`).
 
 ## Current architecture summary
 
@@ -156,12 +138,6 @@ scope confirmation first.**
 
 ## Known risks
 
-- **Milestone 5 work is uncommitted.** A hard reset, `git clean -fd`, or checkout of a
-  clean branch would destroy it. See rule 2 above.
-- **`develop` is not yet merged to `main`.** PR #4
-  (https://github.com/Parthi10/partha-prime-agent/pull/4) is open but unmerged as of
-  this writing; `main` is still 4 commits behind `develop` (missing milestones 2-4)
-  until it's reviewed and merged.
 - **No durable orchestration queue.** Milestone 5 schedules scan orchestration via
   FastAPI's in-process `BackgroundTasks`. A process restart mid-scan loses that
   orchestration with no automatic recovery; there is no retry on transient failure and
