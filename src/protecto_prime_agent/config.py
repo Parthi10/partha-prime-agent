@@ -28,6 +28,29 @@ class Settings(BaseSettings):
     redis_port: int = Field(default=6379)
     redis_db: int = Field(default=0)
     redis_password: str | None = Field(default=None)
+    bitbucket_webhook_secret: str | None = Field(default=None)
+    github_webhook_secret: str | None = Field(default=None)
+    workspace_root: str = Field(default="/tmp/protecto-workspaces")
+    git_clone_timeout_seconds: int = Field(default=300)
+    git_fetch_timeout_seconds: int = Field(default=300)
+    max_workspace_size_mb: int = Field(default=1024)
+    workspace_retention_hours: int = Field(default=24)
+    git_network_max_retries: int = Field(default=3)
+    git_network_retry_backoff_seconds: float = Field(default=0.5)
+
+    scanners_enabled: str = Field(default="ruff,bandit,semgrep,pyright,gitleaks,pip-audit")
+    scanner_output_root: str = Field(default="/tmp/protecto-scanner-output")
+    scanner_timeout_seconds: int = Field(default=120)
+    scanner_cpu_seconds: int = Field(default=90)
+    scanner_memory_mb: int = Field(default=512)
+    scanner_max_processes: int = Field(default=32)
+
+    ruff_version: str = Field(default="0.15.21")
+    bandit_version: str = Field(default="1.9.4")
+    semgrep_version: str = Field(default="1.169.0")
+    pyright_version: str = Field(default="1.1.411")
+    gitleaks_version: str = Field(default="8.30.1")
+    pip_audit_version: str = Field(default="2.10.1")
 
     @computed_field  # type: ignore[prop-defined]
     @property

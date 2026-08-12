@@ -5,3 +5,8 @@ from pydantic import BaseModel, Field
 
 class HealthResponse(BaseModel):
     status: str = Field(default="ok")
+
+
+class WebhookResponse(BaseModel):
+    status: str
+    message: str
