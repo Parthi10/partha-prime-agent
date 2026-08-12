@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from ...config import get_settings
@@ -21,6 +21,7 @@ settings = get_settings()
 @router.post("/bitbucket", response_model=WebhookResponse)
 async def bitbucket_webhook(
     request: Request,
+    background_tasks: BackgroundTasks,
     x_hub_signature: str | None = Header(default=None, alias="X-Hub-Signature"),
     x_event_key: str | None = Header(default=None, alias="X-Event-Key"),
 ) -> JSONResponse | WebhookResponse:
@@ -39,7 +40,7 @@ async def bitbucket_webhook(
         )
     )
     try:
-        result = await service.handle_webhook(body, x_hub_signature, correlation_id)
+        result = await service.handle_webhook(body, x_hub_signature, correlation_id, background_tasks=background_tasks)
     except PermissionError:
         raise HTTPException(status_code=401, detail="authentication_failed") from None
     except json.JSONDecodeError:
@@ -55,6 +56,7 @@ async def bitbucket_webhook(
 @router.post("/github", response_model=WebhookResponse)
 async def github_webhook(
     request: Request,
+    background_tasks: BackgroundTasks,
     x_hub_signature: str | None = Header(default=None, alias="X-Hub-Signature"),
 ) -> JSONResponse | WebhookResponse:
     body = await request.body()
@@ -72,7 +74,7 @@ async def github_webhook(
         )
     )
     try:
-        result = await service.handle_webhook(body, x_hub_signature, correlation_id)
+        result = await service.handle_webhook(body, x_hub_signature, correlation_id, background_tasks=background_tasks)
     except PermissionError:
         raise HTTPException(status_code=401, detail="authentication_failed") from None
     except json.JSONDecodeError:
